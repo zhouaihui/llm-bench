@@ -1,1 +1,6 @@
 #负载模拟参数配置
+
+max_users: 200
+conversation_rounds: [3,10]
+prompt_length: [50,500]
+user_arrival_rate: poisson

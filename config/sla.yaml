@@ -1,1 +1,6 @@
 #SLA指标配置
+
+ttft_p99: 500ms
+tpot_p90: 50ms
+window_size: 60
+observe_windows: 3

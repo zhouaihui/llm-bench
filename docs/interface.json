@@ -1,0 +1,247 @@
+{
+  "benchmark_system": {
+    "modules": [
+      {
+        "module": "controller.sla_engine / 控制层.SLA引擎",
+        "class": "SLAEngine / SLA监控引擎",
+        "description": "SLA monitoring engine that evaluates latency metrics against predefined SLA thresholds / 根据预设SLA阈值评估延迟指标的监控引擎",
+        "constructor": {
+          "inputs": {
+            "ttft_limit": "float / TTFT阈值（首Token延迟上限）",
+            "tpot_limit": "float / TPOT阈值（Token生成延迟上限）"
+          },
+          "outputs": "SLAEngine instance / SLAEngine实例"
+        },
+        "methods": [
+          {
+            "name": "check",
+            "inputs": {
+              "ttft_values": "List[float] / TTFT延迟列表",
+              "tpot_values": "List[float] / TPOT延迟列表"
+            },
+            "outputs": "str / 返回SLA状态",
+            "description": "Return SLA state: SAFE, WARNING, or VIOLATED / 返回SLA状态：安全、警告或违反"
+          }
+        ]
+      },
+
+      {
+        "module": "controller.load_strategy / 控制层.负载策略",
+        "class": "LoadStrategy / 负载控制策略",
+        "description": "Adaptive load controller that adjusts concurrency based on SLA state / 根据SLA状态动态调整并发数的负载控制器",
+        "constructor": {
+          "inputs": {},
+          "outputs": "LoadStrategy instance / LoadStrategy实例"
+        },
+        "methods": [
+          {
+            "name": "adjust",
+            "inputs": {
+              "concurrency": "int / 当前并发数",
+              "state": "str / SLA状态"
+            },
+            "outputs": "int / 新的并发数",
+            "description": "Return the new concurrency level / 返回调整后的并发数"
+          }
+        ]
+      },
+
+      {
+        "module": "metrics.latency_tracker / 指标层.延迟记录器",
+        "class": "LatencyTracker / 延迟统计模块",
+        "description": "Collects latency metrics during benchmark execution / 在Benchmark运行过程中收集延迟指标",
+        "constructor": {
+          "inputs": {},
+          "outputs": "LatencyTracker instance / LatencyTracker实例"
+        },
+        "methods": [
+          {
+            "name": "record",
+            "inputs": {
+              "ttft": "float / 首Token延迟",
+              "tpot": "float / Token生成延迟"
+            },
+            "outputs": "None / 无返回值",
+            "description": "Record latency metrics for a request / 记录一次请求的延迟指标"
+          }
+        ],
+        "state": {
+          "ttft": "List[float] / TTFT延迟集合",
+          "tpot": "List[float] / TPOT延迟集合"
+        }
+      },
+
+      {
+        "module": "metrics.sliding_window / 指标层.滑动窗口",
+        "class": "SlidingWindow / 滑动窗口统计",
+        "description": "Maintains a time-based sliding window of metric values / 维护基于时间的指标滑动窗口",
+        "constructor": {
+          "inputs": {
+            "window_size": "int (seconds) / 窗口大小（秒）"
+          },
+          "outputs": "SlidingWindow instance / SlidingWindow实例"
+        },
+        "methods": [
+          {
+            "name": "add",
+            "inputs": {
+              "value": "float / 指标值"
+            },
+            "outputs": "None / 无返回"
+          },
+          {
+            "name": "values",
+            "inputs": {},
+            "outputs": "List[float] / 窗口内的指标值列表"
+          }
+        ]
+      },
+
+      {
+        "module": "scheduler.thread_manager / 调度层.线程管理器",
+        "class": "ThreadManager / 线程池管理",
+        "description": "Thread pool manager that wraps ThreadPoolExecutor / 对ThreadPoolExecutor的封装，用于管理线程池",
+        "constructor": {
+          "inputs": {
+            "max_workers": "int / 最大线程数"
+          },
+          "outputs": "ThreadManager instance / ThreadManager实例"
+        },
+        "methods": [
+          {
+            "name": "submit",
+            "inputs": {
+              "func": "Callable / 需要执行的函数",
+              "args": "Any / 函数参数"
+            },
+            "outputs": "Future / 线程任务对象"
+          }
+        ]
+      },
+
+      {
+        "module": "scheduler.conversation_scheduler / 调度层.对话调度器",
+        "class": "ConversationScheduler / 对话调度系统",
+        "description": "Schedules user conversations and dispatches prompts to worker threads / 调度用户对话并将请求分发到线程池",
+        "constructor": {
+          "inputs": {
+            "thread_manager": "ThreadManager / 线程管理器"
+          },
+          "outputs": "ConversationScheduler instance / ConversationScheduler实例"
+        },
+        "methods": [
+          {
+            "name": "run_user",
+            "inputs": {
+              "user": "User / 用户对象"
+            },
+            "outputs": "None / 无返回",
+            "description": "Execute prompts for one user session / 执行一个用户的完整对话流程"
+          },
+          {
+            "name": "start",
+            "inputs": {
+              "users": "List[User] / 用户列表"
+            },
+            "outputs": "None / 无返回"
+          }
+        ]
+      },
+
+      {
+        "module": "workload.prompt_generator / 负载层.Prompt生成器",
+        "class": "PromptGenerator / Prompt采样器",
+        "description": "Generates prompts by sampling from prompt templates / 从模板库中随机采样生成Prompt",
+        "constructor": {
+          "inputs": {
+            "templates": "List[str] / Prompt模板列表"
+          },
+          "outputs": "PromptGenerator instance / PromptGenerator实例"
+        },
+        "methods": [
+          {
+            "name": "sample",
+            "inputs": {},
+            "outputs": "str / 随机生成的Prompt"
+          }
+        ]
+      },
+
+      {
+        "module": "workload.user_model / 负载层.用户模型",
+        "class": "User / 模拟用户",
+        "description": "Simulates a user conversation session / 模拟真实用户的对话会话",
+        "constructor": {
+          "inputs": {
+            "prompts": "List[str] / 用户对话Prompt列表"
+          },
+          "outputs": "User instance / User实例"
+        },
+        "methods": [
+          {
+            "name": "has_next",
+            "inputs": {},
+            "outputs": "bool / 是否还有下一轮对话"
+          },
+          {
+            "name": "next_prompt",
+            "inputs": {},
+            "outputs": "str / 下一条Prompt"
+          }
+        ]
+      },
+
+      {
+        "module": "workload.workload_builder / 负载层.负载构建器",
+        "class": "WorkloadBuilder / 用户负载生成器",
+        "description": "Builds simulated user workloads / 构建模拟用户负载",
+        "constructor": {
+          "inputs": {
+            "prompt_generator": "PromptGenerator / Prompt生成器"
+          },
+          "outputs": "WorkloadBuilder instance / WorkloadBuilder实例"
+        },
+        "methods": [
+          {
+            "name": "build_users",
+            "inputs": {
+              "n": "int / 用户数量"
+            },
+            "outputs": "List[User] / 用户对象列表"
+          }
+        ]
+      },
+
+      {
+        "module": "utils.config_loader / 工具模块.配置读取",
+        "function": "load_yaml / 读取YAML配置",
+        "description": "Load YAML configuration files / 加载YAML配置文件",
+        "inputs": {
+          "path": "str / 配置文件路径"
+        },
+        "outputs": "dict / 配置字典"
+      },
+
+      {
+        "module": "utils.logger / 工具模块.日志系统",
+        "object": "logger / 全局日志对象",
+        "description": "Global logging utility used across the benchmark system / 全局日志工具，用于记录Benchmark运行信息"
+      }
+    ],
+
+    "main_flow": {
+      "description": "Benchmark execution pipeline / Benchmark执行流程",
+      "steps": [
+        "Load prompt templates / 读取Prompt模板",
+        "Generate users using WorkloadBuilder / 使用WorkloadBuilder生成用户",
+        "Each user produces prompts / 每个用户生成多轮Prompt",
+        "Simulated inference generates TTFT and TPOT / 模拟推理生成TTFT和TPOT",
+        "LatencyTracker records metrics / LatencyTracker记录延迟指标",
+        "SLAEngine evaluates SLA compliance / SLAEngine评估SLA是否满足",
+        "LoadStrategy adjusts concurrency / LoadStrategy调整并发数",
+        "Repeat for multiple iterations / 多轮迭代执行Benchmark",
+        "Output final benchmark result / 输出最终Benchmark结果"
+      ]
+    }
+  }
+}
