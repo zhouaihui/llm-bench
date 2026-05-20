@@ -1,0 +1,103 @@
+{
+    "timestamp": "2026-05-20T17:03:06",
+    "model": "test_qwen3_32b",
+    "inference_type": "vllm",
+    "deployment": {
+        "base_url": "https://llmsecret-serving.cloud.misuan.com/serving/svmzyksabjdoxlig/v1",
+        "engine": "vllm",
+        "timeout_seconds": 300
+    },
+    "sla_thresholds": {
+        "p99_ttft_limit_ms": 5000,
+        "p90_tpot_limit_ms": 200
+    },
+    "test_config": {
+        "schedule_mode": "realistic",
+        "trace_file": "FAST25-release/traces/conversation_trace.jsonl",
+        "round_duration_seconds": 120,
+        "rps_precision": 0.03,
+        "safe_confirm_rounds": 3,
+        "max_workers": 128,
+        "speed_factor": 1.0,
+        "rps_search_range": [0.5, 5.0],
+        "total_rounds": 6,
+        "total_test_time_seconds": 1908.5
+    },
+    "results": {
+        "max_safe_rps": 0.76,
+        "max_concurrency": 47,
+        "average_ttft_ms": 1193.8,
+        "p99_ttft_ms": 1410.9,
+        "average_tpot_ms": 150.5,
+        "p90_tpot_ms": 203.1,
+        "sla_ttft_pass": true,
+        "sla_tpot_pass": false,
+        "failure_rate": 0.0
+    },
+    "token_statistics": {
+        "total_requests_in_pool": 5000,
+        "input_tokens": {
+            "average": 3342,
+            "median": 4096,
+            "p90": 4096,
+            "p99": 4096,
+            "distribution": {
+                "short_le_1k": {"count": 555, "percent": 11.1},
+                "medium_1k_4k": {"count": 4445, "percent": 88.9},
+                "long_gt_4k": {"count": 0, "percent": 0.0}
+            }
+        },
+        "output_tokens": {
+            "average": 346,
+            "median": 356,
+            "p90": 606,
+            "p99": 1110,
+            "distribution": {
+                "short_le_100": {"count": 1022, "percent": 20.4},
+                "medium_100_500": {"count": 2884, "percent": 57.7},
+                "long_gt_500": {"count": 1094, "percent": 21.9}
+            }
+        },
+        "total_tokens_per_request_avg": 3688,
+        "estimated_request_latency_seconds": 36.1
+    },
+    "conversation_rounds": {
+        "total_unique_users": 2602,
+        "total_sessions_raw": 3962,
+        "requests_per_user": {
+            "mean": 1.9,
+            "median": 1,
+            "max": 1026
+        },
+        "round_distribution": {
+            "single_turn_1_round": {"users": 1836, "percent": 70.6, "description": "单轮对话用户"},
+            "multi_turn_2_plus_rounds": {"users": 766, "percent": 29.4, "description": "多轮对话用户"}
+        },
+        "session_length": {
+            "mean": 1.3,
+            "description": "平均每个会话包含的轮数"
+        }
+    },
+    "cache_hit_analysis": {
+        "description": "基于 hash_ids 前缀重叠度分析 KV Cache 复用情况",
+        "multi_turn_users_with_cache_reuse": 766,
+        "multi_turn_percent": 29.4,
+        "single_turn_no_cache": 70.6,
+        "estimated_cache_hit_rate_percent": 29.4,
+        "note": "多轮对话用户（29.4%）存在 KV Cache 前缀复用，单轮用户（70.6%）无 cache 命中。实际 cache 命中率取决于 vLLM 的 prefix caching 配置和调度策略。"
+    },
+    "stress_test_rounds": [
+        {"round": 1, "target_rps": 2.75, "requests": 330, "result": "VIOLATED", "elapsed_seconds": 463.2, "actual_rps": 0.71, "peak_concurrency": 128},
+        {"round": 2, "target_rps": 1.61, "requests": 193, "result": "VIOLATED", "elapsed_seconds": 311.4, "actual_rps": 0.62, "peak_concurrency": 128},
+        {"round": 3, "target_rps": 1.04, "requests": 124, "result": "VIOLATED", "elapsed_seconds": 206.9, "actual_rps": 0.60, "peak_concurrency": 84},
+        {"round": 4, "target_rps": 0.76, "requests": 91, "result": "SAFE (3/3 confirmed)", "elapsed_seconds": 554.2, "actual_rps": 0.50, "peak_concurrency": 56},
+        {"round": 5, "target_rps": 0.90, "requests": 108, "result": "VIOLATED", "elapsed_seconds": 207.8, "actual_rps": 0.52, "peak_concurrency": 69},
+        {"round": 6, "target_rps": 0.83, "requests": 99, "result": "VIOLATED", "elapsed_seconds": 164.9, "actual_rps": 0.60, "peak_concurrency": 58}
+    ],
+    "user_level_summary": {
+        "total_users_tested": 76,
+        "sla_safe_users": 64,
+        "sla_violated_users": 12,
+        "user_violation_rate_percent": 15.8
+    }
+}

@@ -1,5 +1,17 @@
 [
- "Explain the concept of reinforcement learning.",
- "Write a summary of the following article:",
- "Translate this sentence into Chinese:"
+  "Explain the concept of reinforcement learning and its key algorithms.",
+  "Write a summary of the following article about climate change impacts.",
+  "Translate this sentence into Chinese: The quick brown fox jumps over the lazy dog.",
+  "What are the main differences between supervised and unsupervised learning?",
+  "Write a Python function that implements binary search on a sorted array.",
+  "Explain the architecture of a transformer model in detail, including multi-head attention.",
+  "Summarize the key findings of the latest research on large language models.",
+  "Debug the following code snippet and explain what went wrong.",
+  "Design a RESTful API for a simple e-commerce platform with user authentication.",
+  "Compare and contrast microservices architecture with monolithic architecture.",
+  "Write a detailed technical document explaining how distributed consensus algorithms work.",
+  "Explain the concept of gradient descent optimization and its variants.",
+  "What are the best practices for securing a web application against common vulnerabilities?",
+  "Describe the process of fine-tuning a pre-trained language model for a specific task.",
+  "Write a comprehensive guide on implementing CI/CD pipelines using modern DevOps tools."
 ]

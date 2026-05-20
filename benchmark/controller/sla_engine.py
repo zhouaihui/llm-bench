@@ -1,39 +1,24 @@
-# 控制层：SLA监控引擎
-#
-# 计算 P99 TTFT
-# 计算 P90 TPOT
-# 判断SLA是否满足
-
-# 内部维护：滑动窗口
-
-# 例如：最近60秒请求
-
-# 输出状态：
-# SAFE
-# WARNING
-# VIOLATED
-
 import numpy as np
 
 class SLAEngine:
 
     def __init__(self, ttft_limit, tpot_limit):
-
         self.ttft_limit = ttft_limit
         self.tpot_limit = tpot_limit
 
     def check(self, ttft_values, tpot_values):
+        if not ttft_values or not tpot_values:
+            return "SAFE"
 
-        p99 = np.percentile(ttft_values, 99)
+        p99_ttft = np.percentile(ttft_values, 99)
+        p90_tpot = np.percentile(tpot_values, 90)
 
-        p90 = np.percentile(tpot_values, 90)
-
-        if p99 > self.ttft_limit:
-
+        if p99_ttft > self.ttft_limit or p90_tpot > self.tpot_limit:
             return "VIOLATED"
 
-        if p90 > self.tpot_limit:
-
+        warning_ttft_threshold = self.ttft_limit * 0.9
+        warning_tpot_threshold = self.tpot_limit * 0.9
+        if p99_ttft > warning_ttft_threshold or p90_tpot > warning_tpot_threshold:
             return "WARNING"
 
         return "SAFE"

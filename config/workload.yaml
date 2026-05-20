@@ -1,6 +1,55 @@
-#负载模拟参数配置
+# 负载模拟参数配置
 
-max_users: 200
-conversation_rounds: [3,10]
+max_users: 128
+conversation_rounds: [2,4]
 prompt_length: [50,500]
 user_arrival_rate: poisson
+
+# 调度模式:
+#   "classic"    - 二分搜索最大安全并发（原有模式）
+#   "realistic"  - 基于 trace timestamp 回放真实负载
+schedule_mode: realistic
+
+# 每轮测试时长（秒，仅 realistic 模式有效）
+# 每轮加压测试的时间窗口长度（2 分钟快速测试）
+replay_duration_seconds: 120
+
+# 回放速度因子
+# 1.0 = 正常速度，2.0 = 加速一倍
+speed_factor: 1.0
+
+# 自动加压参数（仅 realistic 模式有效）
+# 系统会自动二分搜索 RPS，找到 SLA 达标的最大吞吐量
+pressure:
+  # RPS 搜索下界（每秒请求数）
+  min_rps: 0.5
+  # RPS 搜索上界（128 并发 / ~36s 请求耗时 ≈ 3.6 理论极限，留余量测服务端瓶颈）
+  max_rps: 5.0
+  # RPS 搜索精度（步长），0.03 = 高精度，确保逼近真实极限
+  rps_precision: 0.03
+  # 安全确认次数：同一 RPS 需连续通过 N 次才视为真正安全
+  safe_confirm_rounds: 3
+
+# 推理配置
+# inference_type: "fake" | "vllm" | "ollama"
+inference_type: vllm
+
+inference:
+  base_url: "https://llmsecret-serving.cloud.misuan.com/serving/svmzyksabjdoxlig/v1"
+  model_name: "test_qwen3_32b"
+  api_key: "ywkwsjmndbrkxlsarlutmiimzphrcsyi"
+  timeout: 300
+  max_tokens: 100
+
+# Trace 数据驱动配置（基于 Kimi Mooncake FAST'25 开源数据）
+# 启用后将使用真实的请求长度分布和到达时间模式
+trace_data:
+  enabled: true
+  # 可选: conversation_trace / synthetic_trace / toolagent_trace
+  trace_file: "FAST25-release/traces/conversation_trace.jsonl"
+  # 限制加载记录数（避免内存过大），null 表示全部加载
+  max_records: 5000
+  # 限制最大输入 token 数（避免超出模型上下文窗口），null 表示不限制
+  max_input_tokens: 4096
+  # 每次试验的最大请求数（realistic 模式下有效），null 表示不限制
+  max_requests_per_trial: null

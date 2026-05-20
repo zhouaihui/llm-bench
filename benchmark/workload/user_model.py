@@ -1,30 +1,25 @@
-# 负载模拟层：模拟真实用户
-
-# 每个用户：
-# 独立线程
-# 独立对话状态
-
-# 用户状态：
-# conversation history
-# current round
-# prompt list
-
-# 示例：user1
-
-# round1 prompt
-# round2 prompt
-# round3 prompt
-
-# 这样自然产生：KV cache 命中
+import threading
 
 class User:
-    _id_counter = 0  # 类变量，用于生成唯一ID
+    _id_counter = 0
+    _id_lock = threading.Lock()
 
     def __init__(self, prompts):
         self.prompts = prompts
         self.index = 0
-        self.id = User._id_counter  # 分配唯一ID
-        User._id_counter += 1
+        self.id = User._generate_id()
+
+    @classmethod
+    def _generate_id(cls):
+        with cls._id_lock:
+            current_id = cls._id_counter
+            cls._id_counter += 1
+            return current_id
+
+    @classmethod
+    def reset_id_counter(cls):
+        with cls._id_lock:
+            cls._id_counter = 0
 
     def has_next(self):
         return self.index < len(self.prompts)
