@@ -50,13 +50,14 @@ inference_type: vllm
 inference:
   base_url: "http://localhost:8000/v1"
   model_name: "meta-llama/Meta-Llama-3-8B"
+  api_key_env: "LLM_BENCH_API_KEY"
   timeout: 300
 ```
 
 ### 4. 运行 Benchmark
 
 ```bash
-cd ant_autobench/llm-bench/benchmark
+cd llm-bench/benchmark
 python main.py
 ```
 
@@ -116,7 +117,7 @@ inference:
 ### 5. 运行 Benchmark
 
 ```bash
-cd ant_autobench/llm-bench/benchmark
+cd llm-bench/benchmark
 python main.py
 ```
 
@@ -150,15 +151,17 @@ class YourCustomInference:
 | `inference.base_url` | vLLM 服务地址 | `"http://localhost:8000/v1"` |
 | `inference.model_name` | 模型名称 | `"llama-3-8b"` / `"llama3"` |
 | `inference.timeout` | 请求超时时间（秒） | `300` |
+| `inference.api_key_env` | API key 环境变量名（可选） | `"LLM_BENCH_API_KEY"` |
 
 ### sla.yaml
 
 | 参数 | 说明 | 示例 |
 |------|------|------|
-| `ttft_p99` | P99 TTFT 阈值（秒） | `0.5` |
-| `tpot_p90` | P90 TPOT 阈值（秒） | `0.05` |
+| `ttft_p99` | P99 TTFT 阈值（秒） | `5.0` |
+| `tpot_p90` | P90 TPOT 阈值（秒） | `0.2` |
 | `window_size` | 滑动窗口大小（秒） | `60` |
 | `observe_windows` | 每轮测试次数 | `3` |
+| `min_samples` | SLA 判定前需要的最少有效样本数 | `5` |
 
 ---
 
@@ -167,7 +170,7 @@ class YourCustomInference:
 ### 使用模拟推理（默认）
 
 ```bash
-cd ant_autobench/llm-bench/benchmark
+cd llm-bench/benchmark
 python main.py
 ```
 
@@ -188,13 +191,13 @@ python main.py
 vllm serve meta-llama/Meta-Llama-3-8B --port 8000
 
 # 2. 运行 Benchmark
-cd ant_autobench/llm-bench/benchmark
+cd llm-bench/benchmark
 python main.py
 ```
 
 输出：
 ```
-[INFO] Using vllm inference: {'base_url': 'http://localhost:8000/v1', 'model_name': 'meta-llama/Meta-Llama-3-8B'}
+[INFO] Using vllm inference: {'base_url': 'http://localhost:8000/v1', 'model_name': 'meta-llama/Meta-Llama-3-8B', 'api_key': '***REDACTED***'}
 [INFO] Testing concurrency: 100
 [INFO] Testing concurrency: 150
 ...

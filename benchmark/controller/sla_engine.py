@@ -2,13 +2,16 @@ import numpy as np
 
 class SLAEngine:
 
-    def __init__(self, ttft_limit, tpot_limit):
+    def __init__(self, ttft_limit, tpot_limit, min_samples=1):
         self.ttft_limit = ttft_limit
         self.tpot_limit = tpot_limit
+        self.min_samples = min_samples
 
     def check(self, ttft_values, tpot_values):
-        if not ttft_values or not tpot_values:
-            return "SAFE"
+        ttft_values = self._finite_values(ttft_values)
+        tpot_values = self._finite_values(tpot_values)
+        if len(ttft_values) < self.min_samples or len(tpot_values) < self.min_samples:
+            return "INSUFFICIENT_DATA"
 
         p99_ttft = np.percentile(ttft_values, 99)
         p90_tpot = np.percentile(tpot_values, 90)
@@ -22,3 +25,7 @@ class SLAEngine:
             return "WARNING"
 
         return "SAFE"
+
+    @staticmethod
+    def _finite_values(values):
+        return [value for value in values if np.isfinite(value)]

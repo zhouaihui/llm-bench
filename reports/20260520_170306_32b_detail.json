@@ -3,7 +3,7 @@
     "model": "test_qwen3_32b",
     "inference_type": "vllm",
     "deployment": {
-        "base_url": "https://llmsecret-serving.cloud.misuan.com/serving/svmzyksabjdoxlig/v1",
+        "base_url": "REDACTED",
         "engine": "vllm",
         "timeout_seconds": 300
     },

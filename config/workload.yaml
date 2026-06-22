@@ -4,10 +4,11 @@ max_users: 128
 conversation_rounds: [2,4]
 prompt_length: [50,500]
 user_arrival_rate: poisson
+seed: 42
 
 # 调度模式:
 #   "classic"    - 二分搜索最大安全并发（原有模式）
-#   "realistic"  - 基于 trace timestamp 回放真实负载
+#   "realistic"  - 基于 trace 请求分布采样并按目标 RPS 加压
 schedule_mode: realistic
 
 # 每轮测试时长（秒，仅 realistic 模式有效）
@@ -32,17 +33,23 @@ pressure:
 
 # 推理配置
 # inference_type: "fake" | "vllm" | "ollama"
-inference_type: vllm
+inference_type: fake
 
 inference:
-  base_url: "https://llmsecret-serving.cloud.misuan.com/serving/svmzyksabjdoxlig/v1"
-  model_name: "test_qwen3_32b"
-  api_key: "ywkwsjmndbrkxlsarlutmiimzphrcsyi"
+  base_url: "http://localhost:8000/v1"
+  model_name: "your-model-name"
+  # Optional: set this environment variable before running with inference_type: vllm.
+  api_key_env: "LLM_BENCH_API_KEY"
   timeout: 300
   max_tokens: 100
 
+# 熔断配置（realistic 模式有效）
+circuit_breaker:
+  failure_rate_threshold: 0.5
+  min_requests: 20
+
 # Trace 数据驱动配置（基于 Kimi Mooncake FAST'25 开源数据）
-# 启用后将使用真实的请求长度分布和到达时间模式
+# 启用后将使用真实的请求长度/输出长度分布构造压测请求
 trace_data:
   enabled: true
   # 可选: conversation_trace / synthetic_trace / toolagent_trace

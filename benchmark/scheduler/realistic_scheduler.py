@@ -12,8 +12,9 @@
 
 import time
 import threading
+import math
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 from utils.logger import logger
 
@@ -69,14 +70,15 @@ class RealisticScheduler:
             else:
                 ttft, tpot = self.inference_fn(request)
 
-            is_failure = (ttft == float("inf") or tpot == float("inf"))
+            is_failure = not (math.isfinite(ttft) and math.isfinite(tpot))
 
-            self.latency_tracker.record(ttft, tpot)
+            recorded = self.latency_tracker.record(ttft, tpot)
             with self._metrics_lock:
-                self.user_metrics[user_id].append((ttft, tpot))
                 self._total_completed += 1
                 if is_failure:
                     self._total_failed += 1
+                elif recorded:
+                    self.user_metrics[user_id].append((ttft, tpot))
         finally:
             with self._active_lock:
                 self._active_count -= 1

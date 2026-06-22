@@ -8,12 +8,12 @@
 
 ### 核心特性
 
-- **真实负载模拟**：基于 Kimi Mooncake (FAST'25) 开源 trace 数据，还原真实的请求长度分布和用户行为模式
+- **Trace 分布驱动负载**：基于 Kimi Mooncake (FAST'25) 开源 trace 数据，还原请求长度分布和用户行为模式
 - **自动加压测试**：二分搜索算法自动逼近极限 RPS，无需人工调参
 - **多次安全确认**：同一 RPS 需连续通过 N 次测试才确认为安全，消除随机波动
 - **智能熔断机制**：失败率过高时自动终止当前轮，避免无效等待
 - **429 退避重试**：指数退避策略处理服务端限流，不误判为性能问题
-- **多维度报告**：生成 HTML/JSON/Markdown 报告，含 Token 分布、Cache 命中、对话轮数等详细分析
+- **多维度报告**：生成 Markdown/JSON 报告，含延迟、吞吐、峰值并发和用户级 SLA 分析
 
 ## 运行原理
 
@@ -22,7 +22,7 @@
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  1. 加载 Trace 数据 → 构建请求池                          │
-│  2. 数据集深度分析（Token 分布、用户行为、Cache 命中）       │
+│  2. 数据集深度分析（Token 分布、用户行为、前缀复用元数据）    │
 │  3. 二分搜索循环：                                        │
 │     ├─ 选定候选 RPS                                      │
 │     ├─ 按 RPS 采样请求，均匀分布到时间窗口                 │
@@ -87,7 +87,7 @@ while (high - low) >= precision:
 | `output_length` | 输出 Token 数 |
 | `hash_ids` | KV Cache Block ID 列表，用于标识前缀复用关系 |
 
-### 数据特征（conversation_trace.jsonl）
+### 数据特征（默认 max_records=5000 时）
 
 - 总记录数：5000
 - 独立用户：2602
@@ -105,9 +105,9 @@ llm-bench/
 │   └── workload.yaml         # 负载和测试参数配置
 ├── data/
 │   ├── prompt_templates.json # Prompt 模板库
-│   └── FAST25-release/       # Kimi Mooncake trace 数据
-│       └── traces/
-│           └── conversation_trace.jsonl
+├── FAST25-release/           # Kimi Mooncake trace 数据
+│   └── traces/
+│       └── conversation_trace.jsonl
 ├── benchmark/
 │   ├── main.py               # 主入口，自动加压逻辑
 │   ├── controller/
@@ -130,7 +130,6 @@ llm-bench/
 └── reports/                   # 自动生成的测试报告
     ├── *.md
     ├── *.json
-    └── *_detail.html
 ```
 
 ## 快速开始
@@ -153,20 +152,21 @@ ttft_p99: 5.0         # P99 TTFT 上限（秒）
 tpot_p90: 0.2         # P90 TPOT 上限（秒）
 window_size: 60       # 统计窗口大小（秒）
 observe_windows: 3    # 观察窗口数
+min_samples: 5        # 进行 SLA 判定所需的最少有效样本数
 ```
 
 #### 2. 负载配置（`config/workload.yaml`）
 
 ```yaml
-# 调度模式: "classic"（固定并发）或 "realistic"（trace 驱动）
+# 调度模式: "classic"（固定并发）或 "realistic"（trace 分布驱动 RPS 压测）
 schedule_mode: realistic
 
-# 推理服务配置
-inference_type: vllm   # vllm | ollama | fake
+# 推理服务配置。默认 fake 可用于本地 smoke test；真实服务改为 vllm/ollama。
+inference_type: fake   # vllm | ollama | fake
 inference:
-  base_url: "http://your-llm-service:8000/v1"
+  base_url: "http://localhost:8000/v1"
   model_name: "your-model-name"
-  api_key: "your-api-key"
+  api_key_env: "LLM_BENCH_API_KEY"
   timeout: 300
   max_tokens: 100
 
@@ -183,6 +183,11 @@ pressure:
   rps_precision: 0.03     # 搜索精度
   safe_confirm_rounds: 3  # 安全确认次数
 
+# 熔断参数
+circuit_breaker:
+  failure_rate_threshold: 0.5
+  min_requests: 20
+
 # Trace 数据配置
 trace_data:
   enabled: true
@@ -198,24 +203,36 @@ cd benchmark
 python main.py
 ```
 
+也可以从仓库根目录运行：
+
+```bash
+python run_benchmark.py
+```
+
+### 测试
+
+```bash
+python -m unittest discover -s tests
+```
+
 ### 输出
 
 运行完成后，自动生成报告到 `reports/` 目录：
 
-- `*_32b.md` — Markdown 格式报告
-- `*_32b.json` — 结构化 JSON 数据
-- `*_detail.html` — 可视化 HTML 报告（浏览器打开）
-- `*_detail.json` — 完整详细数据（含 Cache、Token、轮数分析）
+- `*.md` — Markdown 格式报告
+- `*.json` — 结构化 JSON 数据
 
 ## 使用场景
 
 ### 场景 1：评估新模型部署的服务能力
 
 ```yaml
-# 修改 workload.yaml 中的推理配置
+# 修改 workload.yaml 中的推理配置，并通过环境变量提供密钥
+inference_type: vllm
 inference:
   base_url: "http://new-model-service:8000/v1"
   model_name: "qwen3-72b"
+  api_key_env: "LLM_BENCH_API_KEY"
 ```
 
 ### 场景 2：调整 SLA 阈值看容量变化

@@ -1,15 +1,21 @@
 """诊断脚本：查看远程 API 流式响应的原始格式"""
+import os
 import requests
 import json
 import time
 
-url = "https://llmsecret-serving.cloud.misuan.com/serving/svmzyksabjdoxlig/v1/chat/completions"
+base_url = os.environ.get("LLM_BENCH_BASE_URL", "http://localhost:8000/v1")
+api_key = os.environ.get("LLM_BENCH_API_KEY")
+model_name = os.environ.get("LLM_BENCH_MODEL_NAME", "your-model-name")
+
+url = f"{base_url.rstrip('/')}/chat/completions"
 headers = {
     "Content-Type": "application/json",
-    "Authorization": "Bearer ywkwsjmndbrkxlsarlutmiimzphrcsyi"
 }
+if api_key:
+    headers["Authorization"] = f"Bearer {api_key}"
 payload = {
-    "model": "test_qwen3_32b",
+    "model": model_name,
     "messages": [{"role": "user", "content": "Say hello in one sentence"}],
     "stream": True,
     "max_tokens": 20

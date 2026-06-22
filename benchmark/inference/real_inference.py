@@ -10,6 +10,8 @@ import requests
 import json
 from typing import Optional, Tuple
 
+from utils.logger import logger
+
 
 class RealInference:
     """真实 LLM 推理接口，支持 OpenAI 兼容 API（含远程服务）"""
@@ -166,10 +168,10 @@ class RealInference:
             return ttft, tpot
 
         except requests.exceptions.Timeout:
-            print(f"Request timeout for prompt: {prompt[:50]}...")
+            logger.warning(f"Request timeout for prompt: {prompt[:50]}...")
             return float("inf"), float("inf")
         except requests.exceptions.RequestException as e:
-            print(f"Request error: {e}")
+            logger.warning(f"Request error: {e}")
             return float("inf"), float("inf")
 
 
@@ -226,15 +228,15 @@ class OllamaInference:
             ttft = first_token_time - start_time if first_token_time else 0
             total_time = last_token_time - start_time if last_token_time else 0
 
-            if token_count > 0 and ttft > 0:
-                tpot = (total_time - ttft) / token_count
+            if token_count > 1 and ttft > 0:
+                tpot = (total_time - ttft) / (token_count - 1)
             else:
                 tpot = 0
 
             return ttft, tpot
 
         except Exception as e:
-            print(f"Ollama error: {e}")
+            logger.warning(f"Ollama error: {e}")
             return float("inf"), float("inf")
 
 
@@ -265,7 +267,7 @@ def create_inference(inference_type: str, **kwargs):
     else:
         # 返回 fake inference 函数
         import random
-        def fake_inference(prompt, concurrency_factor=1.0):
+        def fake_inference(prompt, concurrency_factor=1.0, max_tokens=None):
             base_ttft = random.uniform(0.15, 0.4)
             base_tpot = random.uniform(0.02, 0.04)
             ttft = base_ttft * (1 + 0.05 * concurrency_factor)

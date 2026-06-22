@@ -20,8 +20,11 @@ class LatencyTracker:
         self.tpot_window = SlidingWindow(window_size=window_seconds)
 
     def record(self, ttft, tpot):
+        if not (np.isfinite(ttft) and np.isfinite(tpot)):
+            return False
         self.ttft_window.add(ttft)
         self.tpot_window.add(tpot)
+        return True
 
     def get_ttft_window(self):
         return self.ttft_window.values()

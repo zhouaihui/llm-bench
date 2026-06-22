@@ -21,11 +21,30 @@ from workload.workload_builder import WorkloadBuilder
 from workload.trace_loader import TraceLoader
 from scheduler.thread_manager import ThreadManager
 from scheduler.conversation_scheduler import ConversationScheduler
-from utils.config_loader import load_yaml
+from utils.config_loader import load_yaml, validate_configs
 from utils.logger import logger
 from inference.real_inference import create_inference
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _finite_values(values):
+    return [value for value in values if np.isfinite(value)]
+
+
+def _redact_config(config):
+    redacted = dict(config)
+    if redacted.get("api_key"):
+        redacted["api_key"] = "***REDACTED***"
+    return redacted
+
+
+def _resolve_inference_config(inference_config):
+    resolved = dict(inference_config)
+    api_key_env = resolved.get("api_key_env")
+    if api_key_env and not resolved.get("api_key"):
+        resolved["api_key"] = os.getenv(api_key_env)
+    return resolved
 
 def fake_inference(prompt, concurrency_factor=1.0, max_tokens=None):
     base_ttft = random.uniform(0.15, 0.4)
@@ -40,7 +59,8 @@ def fake_inference(prompt, concurrency_factor=1.0, max_tokens=None):
 def analyze_users(user_ttft_dict, user_tpot_dict, ttft_limit, tpot_limit):
     results = {}
     for user, ttfts in user_ttft_dict.items():
-        tpots = user_tpot_dict.get(user, [])
+        ttfts = _finite_values(ttfts)
+        tpots = _finite_values(user_tpot_dict.get(user, []))
         p99_ttft = np.percentile(ttfts, 99) if ttfts else 0
         p90_tpot = np.percentile(tpots, 90) if tpots else 0
         sla_status = "SAFE" if (p99_ttft < ttft_limit and p90_tpot < tpot_limit) else "VIOLATED"
@@ -58,8 +78,8 @@ def generate_benchmark_report(user_ttft_dict, user_tpot_dict, max_safe_concurren
                               test_start_time, test_end_time, ttft_limit, tpot_limit,
                               model_name="unknown", inference_type="fake",
                               trace_info=None, user_results=None):
-    all_ttft = [ttft for ttfts in user_ttft_dict.values() for ttft in ttfts]
-    all_tpot = [tpot for tpots in user_tpot_dict.values() for tpot in tpots]
+    all_ttft = _finite_values([ttft for ttfts in user_ttft_dict.values() for ttft in ttfts])
+    all_tpot = _finite_values([tpot for tpots in user_tpot_dict.values() for tpot in tpots])
 
     avg_ttft = round(np.mean(all_ttft) * 1000, 1) if all_ttft else 0.0
     avg_tpot = round(np.mean(all_tpot) * 1000, 1) if all_tpot else 0.0
@@ -67,7 +87,10 @@ def generate_benchmark_report(user_ttft_dict, user_tpot_dict, max_safe_concurren
     p90_tpot = round(np.percentile(all_tpot, 90) * 1000, 1) if all_tpot else 0.0
     total_requests = len(all_ttft)
     test_duration = round(test_end_time - test_start_time, 1)
-    throughput_rps = round(total_requests / test_duration, 1) if test_duration > 0 else 0.0
+    metric_duration = trace_info.get("round_duration") if trace_info else None
+    if not metric_duration:
+        metric_duration = test_duration
+    throughput_rps = round(total_requests / metric_duration, 1) if metric_duration > 0 else 0.0
 
     ttft_limit_ms = int(ttft_limit * 1000)
     tpot_limit_ms = int(tpot_limit * 1000)
@@ -88,8 +111,12 @@ def generate_benchmark_report(user_ttft_dict, user_tpot_dict, max_safe_concurren
     report_path = os.path.join(reports_dir, report_filename)
 
     # 构建 Markdown 报告
-    sla_ttft_status = "✅ PASS" if p99_ttft <= ttft_limit_ms else "❌ FAIL"
-    sla_tpot_status = "✅ PASS" if p90_tpot <= tpot_limit_ms else "❌ FAIL"
+    if not all_ttft or not all_tpot:
+        sla_ttft_status = "INSUFFICIENT_DATA"
+        sla_tpot_status = "INSUFFICIENT_DATA"
+    else:
+        sla_ttft_status = "✅ PASS" if p99_ttft <= ttft_limit_ms else "❌ FAIL"
+        sla_tpot_status = "✅ PASS" if p90_tpot <= tpot_limit_ms else "❌ FAIL"
 
     lines = [
         f"## LLM SLA Benchmark Report",
@@ -124,14 +151,25 @@ def generate_benchmark_report(user_ttft_dict, user_tpot_dict, max_safe_concurren
         f"",
         f"| Metric | Value |",
         f"|--------|-------|",
-        f"| **Max Stable Concurrency** | **{max_safe_concurrency}** |",
+    ]
+
+    if trace_info and trace_info.get("max_safe_rps") is not None:
+        lines += [
+            f"| **Max Safe RPS** | **{trace_info.get('max_safe_rps')}** |",
+            f"| Peak Concurrency at Max Safe RPS | {max_safe_concurrency} |",
+        ]
+    else:
+        lines.append(f"| **Max Stable Concurrency** | **{max_safe_concurrency}** |")
+
+    lines += [
         f"| Average TTFT | {avg_ttft}ms |",
         f"| P99 TTFT | {p99_ttft}ms |",
         f"| Average TPOT | {avg_tpot}ms |",
         f"| P90 TPOT | {p90_tpot}ms |",
-        f"| Throughput | {throughput_rps} RPS |",
+        f"| Observed Throughput | {throughput_rps} RPS |",
         f"| Total Requests | {total_requests} |",
-        f"| Test Duration | {test_duration}s |",
+        f"| Metric Window | {round(metric_duration, 1)}s |",
+        f"| Total Search Duration | {test_duration}s |",
         f"",
     ]
 
@@ -163,11 +201,13 @@ def generate_benchmark_report(user_ttft_dict, user_tpot_dict, max_safe_concurren
         "inference_type": inference_type,
         "SLA": {"P99_TTFT_limit_ms": ttft_limit_ms, "P90_TPOT_limit_ms": tpot_limit_ms},
         "Result": {
+            "max_safe_rps": trace_info.get("max_safe_rps") if trace_info else None,
             "max_concurrency": max_safe_concurrency,
             "average_ttft_ms": avg_ttft, "p99_ttft_ms": p99_ttft,
             "average_tpot_ms": avg_tpot, "p90_tpot_ms": p90_tpot,
             "throughput_rps": throughput_rps,
             "total_requests": total_requests,
+            "metric_window_s": metric_duration,
             "test_duration_s": test_duration
         }
     }
@@ -182,7 +222,15 @@ def generate_benchmark_report(user_ttft_dict, user_tpot_dict, max_safe_concurren
     logger.info(f"Model: {model_name}")
     logger.info(f"SLA: P99 TTFT < {ttft_limit_ms}ms ({sla_ttft_status}), "
                 f"P90 TPOT < {tpot_limit_ms}ms ({sla_tpot_status})")
-    logger.info(f"Result: Max Concurrency: {max_safe_concurrency}, "
+    if trace_info and trace_info.get("max_safe_rps") is not None:
+        logger.info(f"Result: Max Safe RPS: {trace_info.get('max_safe_rps')}, "
+                    f"Peak Concurrency: {max_safe_concurrency}, "
+                    f"Average TTFT: {avg_ttft}ms, Average TPOT: {avg_tpot}ms, "
+                    f"Throughput: {throughput_rps} RPS, "
+                    f"Total Requests: {total_requests}, "
+                    f"Metric Window: {round(metric_duration, 1)}s")
+    else:
+        logger.info(f"Result: Max Concurrency: {max_safe_concurrency}, "
                 f"Average TTFT: {avg_ttft}ms, Average TPOT: {avg_tpot}ms, "
                 f"Throughput: {throughput_rps} RPS, "
                 f"Total Requests: {total_requests}, "
@@ -200,22 +248,30 @@ def main():
 
     sla_config = load_yaml(os.path.join(BASE_DIR, "config", "sla.yaml"))
     workload_config = load_yaml(os.path.join(BASE_DIR, "config", "workload.yaml"))
+    validate_configs(sla_config, workload_config)
+
+    seed = workload_config.get("seed")
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
+        logger.info(f"Using random seed: {seed}")
 
     TTFT_LIMIT = float(sla_config.get("ttft_p99", 0.5))
     TPOT_LIMIT = float(sla_config.get("tpot_p90", 0.05))
     window_size = int(sla_config.get("window_size", 60))
     observe_windows = int(sla_config.get("observe_windows", 3))
+    min_samples = int(sla_config.get("min_samples", 1))
     max_users = int(workload_config.get("max_users", 200))
     conversation_rounds = workload_config.get("conversation_rounds", [3, 10])
 
     # 推理配置
     inference_type = workload_config.get("inference_type", "fake")
-    inference_config = workload_config.get("inference", {})
+    inference_config = _resolve_inference_config(workload_config.get("inference", {}))
 
     # 调度模式：classic（原有二分搜索）或 realistic（trace 时间驱动）
     schedule_mode = workload_config.get("schedule_mode", "classic")
 
-    sla_engine = SLAEngine(TTFT_LIMIT, TPOT_LIMIT)
+    sla_engine = SLAEngine(TTFT_LIMIT, TPOT_LIMIT, min_samples=min_samples)
 
     prompt_path = os.path.join(BASE_DIR, "data", "prompt_templates.json")
     with open(prompt_path) as f:
@@ -259,7 +315,7 @@ def main():
         logger.info("Using fake inference (simulation mode)")
     else:
         inference_obj = create_inference(inference_type, **inference_config)
-        logger.info(f"Using {inference_type} inference: {inference_config}")
+        logger.info(f"Using {inference_type} inference: {_redact_config(inference_config)}")
 
         def inference_fn(prompt, concurrency_factor=1.0, max_tokens=None):
             return inference_obj.infer(prompt, max_tokens=max_tokens)
@@ -286,6 +342,9 @@ def main():
         max_rps = float(pressure_config.get("max_rps", 20.0))
         rps_precision = float(pressure_config.get("rps_precision", 0.5))
         safe_confirm_rounds = int(pressure_config.get("safe_confirm_rounds", 1))
+        circuit_config = workload_config.get("circuit_breaker", {})
+        failure_rate_threshold = float(circuit_config.get("failure_rate_threshold", 0.5))
+        min_requests_for_circuit_break = int(circuit_config.get("min_requests", 20))
 
         # 预构建所有请求（只做一次，后续按 RPS 采样）
         logger.info("Building request pool from trace data...")
@@ -406,6 +465,8 @@ def main():
                         prompt, 1.0, max_tokens=max_tokens),
                     max_workers=max_users,
                     speed_factor=speed_factor,
+                    failure_rate_threshold=failure_rate_threshold,
+                    min_requests_for_circuit_break=min_requests_for_circuit_break,
                 )
 
                 round_start = time.time()
@@ -433,7 +494,7 @@ def main():
                                 f"actual_rps={actual_rps:.2f}, peak_concurrency={peak_concurrency}, "
                                 f"failure_rate={failure_rate:.1%}")
 
-                    if state in ("SAFE", "WARNING"):
+                    if state == "SAFE":
                         confirm_pass += 1
                         # 保存指标（仅保留最后一次确认的数据）
                         final_user_ttft_dict_candidate = defaultdict(list)

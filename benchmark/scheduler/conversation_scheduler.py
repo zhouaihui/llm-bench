@@ -7,6 +7,7 @@ from collections import defaultdict
 import threading
 import random
 import time
+import math
 
 
 class ConversationScheduler:
@@ -33,9 +34,10 @@ class ConversationScheduler:
             else:
                 ttft, tpot = self.inference_fn(request)
 
-            self.latency_tracker.record(ttft, tpot)
-            with self._metrics_lock:
-                self.user_metrics[user.id].append((ttft, tpot))
+            if math.isfinite(ttft) and math.isfinite(tpot):
+                self.latency_tracker.record(ttft, tpot)
+                with self._metrics_lock:
+                    self.user_metrics[user.id].append((ttft, tpot))
 
             sleep_time = random.expovariate(rps)
             time.sleep(sleep_time)
