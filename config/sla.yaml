@@ -1,6 +1,6 @@
-#SLA指标配置
-
-ttft_p99: 500ms
-tpot_p90: 50ms
-window_size: 60
-observe_windows: 3
+# SLA 阈值配置
+# 对于远程 API + thinking 模型（如 Qwen3），需要适当放宽阈值
+# TTFT: 首 Token 延迟（包含网络往返 + 思考启动时间）
+# TPOT: 每个 Token 的平均生成间隔
+ttft_p99: 5.0
+tpot_p90: 0.2

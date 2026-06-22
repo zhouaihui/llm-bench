@@ -1,0 +1,19 @@
+{
+    "timestamp": "2026-05-20T16:16:33.521323",
+    "model": "test_qwen3_32b",
+    "inference_type": "vllm",
+    "SLA": {
+        "P99_TTFT_limit_ms": 5000,
+        "P90_TPOT_limit_ms": 200
+    },
+    "Result": {
+        "max_concurrency": 40,
+        "average_ttft_ms": 1190.1,
+        "p99_ttft_ms": 1842.3,
+        "average_tpot_ms": 133.2,
+        "p90_tpot_ms": 161.8,
+        "throughput_rps": 0.1,
+        "total_requests": 82,
+        "test_duration_s": 1157.4
+    }
+}

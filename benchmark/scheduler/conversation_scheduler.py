@@ -1,25 +1,13 @@
 # 调度层：对话调度器
+#
+# 负责调度多个用户并行执行对话任务
+# 使用线程锁保证 user_metrics 的线程安全
 
-# 负责：
-# 创建用户线程
-# 控制对话轮数
-# 发送请求
-
-# 每个用户：一个线程
-
-# 使用：
-# ThreadPoolExecutor
-
-# 结构：
-# ThreadPool
-#    ├ user1
-#    ├ user2
-#    ├ user3
-
-from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
+import threading
 import random
 import time
+
 
 class ConversationScheduler:
     """
@@ -30,17 +18,25 @@ class ConversationScheduler:
         self.thread_manager = thread_manager
         self.latency_tracker = latency_tracker
         self.inference_fn = inference_fn
-        # 新增：用户级指标存储
-        self.user_metrics = defaultdict(list)  # {user_id: [(ttft, tpot), ...]}
+        self.user_metrics = defaultdict(list)
+        self._metrics_lock = threading.Lock()
 
     def run_user(self, user, rps):
         while user.has_next():
-            prompt = user.next_prompt()
-            ttft, tpot = self.inference_fn(prompt)
-            self.latency_tracker.record(ttft, tpot)
-            self.user_metrics[user.id].append((ttft, tpot))  # ← 这里必须加
+            request = user.next_prompt()
 
-            # Poisson arrival
+            # 支持两种格式：字符串（传统）或字典（trace 模式）
+            if isinstance(request, dict):
+                prompt = request["prompt"]
+                max_tokens = request.get("max_tokens")
+                ttft, tpot = self.inference_fn(prompt, max_tokens=max_tokens)
+            else:
+                ttft, tpot = self.inference_fn(request)
+
+            self.latency_tracker.record(ttft, tpot)
+            with self._metrics_lock:
+                self.user_metrics[user.id].append((ttft, tpot))
+
             sleep_time = random.expovariate(rps)
             time.sleep(sleep_time)
 
@@ -49,16 +45,10 @@ class ConversationScheduler:
             self.thread_manager.submit(self.run_user, user, rps)
         self.thread_manager.wait()
 
-    # -----------------------------
-    # 新增方法：获取用户级指标
-    # -----------------------------
     def get_user_metrics(self):
-        """
-        返回格式：
-        [(user_id, ttft, tpot), ...]
-        """
-        all_metrics = []
-        for user_id, metrics in self.user_metrics.items():
-            for ttft, tpot in metrics:
-                all_metrics.append((user_id, ttft, tpot))
-        return all_metrics
+        with self._metrics_lock:
+            all_metrics = []
+            for user_id, metrics in self.user_metrics.items():
+                for ttft, tpot in metrics:
+                    all_metrics.append((user_id, ttft, tpot))
+            return all_metrics

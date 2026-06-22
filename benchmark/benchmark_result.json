@@ -1,0 +1,15 @@
+{
+    "timestamp": "2026-05-11T14:45:29.662931",
+    "SLA": {
+        "P99_TTFT_limit_ms": 5000,
+        "P90_TPOT_limit_ms": 200
+    },
+    "Result": {
+        "max_concurrency": 32,
+        "average_ttft_ms": 617.3,
+        "average_tpot_ms": 51.0,
+        "throughput_rps": 0.2,
+        "total_requests": 104,
+        "test_duration_s": 429.7
+    }
+}
